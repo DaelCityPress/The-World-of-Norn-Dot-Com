@@ -1,163 +1,293 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>Fantasy Map</title>
+  <meta charset="UTF-8" />
+  <title>Fantasy Map</title>
 
-<style>
-body {
-  margin: 0;
-  padding: 0;
-  background-color: #1c1c1c;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  overflow: visible;
-}
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #1c1c1c;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: visible;
+    }
 
-.map-wrapper {
-  position: relative;
-  width: 80vw;
-  overflow: visible;
-}
+    /* OUTER WRAPPER: NOT clipped so popups can escape */
+    .map-wrapper {
+      position: relative;
+      width: 80vw;
+      overflow: visible;
+    }
 
-.map-clip {
-  position: relative;
-  overflow: hidden;
-  width: 100%;
-}
+    /* CLIP BOX: ONLY clips the zoomed map image */
+    .map-clip {
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+    }
 
-.map {
-  width: 100%;
-  height: auto;
-  display: block;
-  transition: transform 0.4s ease, transform-origin 0.4s ease;
-  will-change: transform;
-}
+    .map {
+      width: 100%;
+      height: auto;
+      display: block;
+      transition: transform 0.4s ease, transform-origin 0.4s ease;
+      will-change: transform;
+    }
 
-.overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1000;
-  overflow: visible;
-}
+    /* OVERLAY: hotspots + popups live here (not clipped) */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 1000;
+      overflow: visible;
+    }
 
-.hotspot {
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  z-index: 1001;
-  transform: none;
-}
+    .hotspot {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      z-index: 1001;
 
-.hotspot a {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: transparent;
-  text-decoration: none;
-}
+      /* IMPORTANT: no translate() — keeps your original coordinates */
+      transform: none;
+    }
 
-/* POPUP SETTINGS */
-.popup {
-  position: absolute;
-  bottom: 100%;
-  left: 100%;
-  transform-origin: bottom left;
+    .hotspot a {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: 1px solid transparent;
+      text-decoration: none;
+    }
 
-  --pop-x: 12px;
-  --pop-y: -8px;
+    /* Uncomment this temporarily if you want to SEE hotspots for debugging */
+    /*
+    .hotspot a {
+      border: 1px solid rgba(0, 255, 255, 0.5);
+      background: rgba(0, 255, 255, 0.15);
+    }
+    */
 
-  /* Bigger appearance */
-  --pop-scale-hidden: 0.9;
-  --pop-scale-hover: 1.05;
+    /* POPUP — per-hotspot positioning via CSS variables */
+    .popup {
+      position: absolute;
+      bottom: 100%;
+      left: 100%;
+      transform-origin: bottom left;
 
-  transform:
-    scale(var(--pop-scale-hidden))
-    translate(var(--pop-x), var(--pop-y));
+      /* defaults (override per hotspot via style="--pop-x: ...; --pop-y: ...") */
+      --pop-x: 12px;
+      --pop-y: -8px;
+      --pop-scale-hidden: 0.68; /* hidden state size */
+      --pop-scale-hover: 0.8;   /* hover size (~20% smaller than original) */
 
-  opacity: 0;
-  pointer-events: none;
-  transition: transform 0.25s ease, opacity 0.25s ease;
-  z-index: 999999;
-}
+      transform:
+        scale(var(--pop-scale-hidden))
+        translate(var(--pop-x), var(--pop-y));
 
-.popup img {
-  width: 300px;  /* increased from 160px */
-  height: auto;
-  display: block;
-  border-radius: 8px;
-  box-shadow: 0 15px 40px rgba(0,0,0,0.7);
-}
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.22s ease, opacity 0.22s ease;
+      z-index: 999999;
+    }
 
-.hotspot:hover .popup {
-  opacity: 1;
-  transform:
-    scale(var(--pop-scale-hover))
-    translate(var(--pop-x), var(--pop-y));
-}
+    .popup img {
+      width: 160px;
+      height: auto;
+      display: block;
+      border-radius: 6px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    }
 
-.popup-top-left {
-  bottom: auto;
-  top: 100%;
-  left: 100%;
-  transform-origin: top left;
-}
-</style>
+    .hotspot:hover .popup {
+      opacity: 1;
+      transform:
+        scale(var(--pop-scale-hover))
+        translate(var(--pop-x), var(--pop-y));
+    }
+	
+		/* City 1: anchor popup by TOP-LEFT corner instead of bottom-left */
+	.popup-top-left {
+	  bottom: auto;
+	  top: 100%;
+	  left: 100%;
+	  transform-origin: top left;
+	}
+  </style>
 </head>
 
 <body>
 
-<div class="map-wrapper">
+  <div class="map-wrapper">
 
-<div class="map-clip">
-  <img src="norn1.png" alt="Fantasy Map" class="map" id="map-image" />
-</div>
+    <!-- Map zoom stays clipped in this box -->
+    <div class="map-clip">
+      <img src="norn1.png" alt="Fantasy Map" class="map" id="map-image" />
+    </div>
 
-<div class="overlay">
+    <!-- Hotspots + popups -->
+    <div class="overlay">
 
-<!-- Hotspot 1 -->
-<div class="hotspot" style="top: 10%; left: 41.5%; --pop-x: 12px; --pop-y: 1118px;"
-     data-origin-x="41.5%" data-origin-y="10%">
-  <a href="#region1"></a>
-  <div class="popup popup-top-left">
-    <img src="city 1.png" alt="City 1">
+      <!-- Hotspot 1 -->
+      <div class="hotspot" style="top: 10%; left: 41.5%; --pop-x: 12px; --pop-y: 1118px;"
+           data-origin-x="41.5%" data-origin-y="10%">
+        <a href="#region1"></a>
+        <div class="popup popup-top-left">
+			<img src="city 1.png" alt="City 1"></div>
+      </div>
+
+      <!-- Hotspot 2 -->
+      <div class="hotspot" style="top: 47%; left: 55.75%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="55.75%" data-origin-y="47%">
+        <a href="#region2"></a>
+        <div class="popup"><img src="city 2. png" alt="City 2"></div>
+      </div>
+
+      <div class="hotspot" style="top: 61.5%; left: 52.5%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="52.5%" data-origin-y="61.5%">
+        <a href="#region3"></a>
+        <div class="popup"><img src="city .png" alt="City 3"></div>
+      </div>
+
+      <div class="hotspot" style="top: 58%; left: 31.25%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="31.25%" data-origin-y="58%">
+        <a href="#region4"></a>
+        <div class="popup"><img src="city 4.png" alt="City 4"></div>
+      </div>
+
+      <div class="hotspot" style="top: 40.75%; left: 31.75%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="31.75%" data-origin-y="40.75%">
+        <a href="#region5"></a>
+        <div class="popup"><img src="city 5.png" alt="City 5"></div>
+      </div>
+
+      <div class="hotspot" style="top: 25.25%; left: 29.35%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="29.35%" data-origin-y="25.25%">
+        <a href="#region6"></a>
+        <div class="popup"><img src="city 6.png" alt="City 6"></div>
+      </div>
+
+      <div class="hotspot" style="top: 21.75%; left: 39.5%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="39.5%" data-origin-y="21.75%">
+        <a href="#region7"></a>
+        <div class="popup"><img src="city 7.png" alt="City 7"></div>
+      </div>
+
+      <div class="hotspot" style="top: 34.5%; left: 39.75%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="39.75%" data-origin-y="34.5%">
+        <a href="#region8"></a>
+        <div class="popup"><img src="city 8.png" alt="City 8"></div>
+      </div>
+
+      <div class="hotspot" style="top: 76.25%; left: 65.25%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="65.25%" data-origin-y="76.25%">
+        <a href="#region9"></a>
+        <div class="popup"><img src="city 9.png" alt="City 9"></div>
+      </div>
+
+      <div class="hotspot" style="top: 53.25%; left: 46.25%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="46.25%" data-origin-y="53.25%">
+        <a href="#region10"></a>
+        <div class="popup"><img src="city 10.png" alt="City 10"></div>
+      </div>
+
+      <div class="hotspot" style="top: 47.75%; left: 40.75%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="40.75%" data-origin-y="47.75%">
+        <a href="#region11"></a>
+        <div class="popup"><img src="city 11.png" alt="City 11"></div>
+      </div>
+
+      <div class="hotspot" style="top: 65%; left: 38.25%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="38.25%" data-origin-y="65%">
+        <a href="#region12"></a>
+        <div class="popup"><img src="city 12.png" alt="City 12"></div>
+      </div>
+
+      <div class="hotspot" style="top: 68%; left: 26.5%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="26.5%" data-origin-y="68%">
+        <a href="#region13"></a>
+        <div class="popup"><img src="city 13.png" alt="City 13"></div>
+      </div>
+
+      <div class="hotspot" style="top: 79%; left: 42%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="42%" data-origin-y="79%">
+        <a href="#region14"></a>
+        <div class="popup"><img src="city 14.png" alt="City 14"></div>
+      </div>
+
+      <div class="hotspot" style="top: 84.5%; left: 61.5%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="61.5%" data-origin-y="84.5%">
+        <a href="#region15"></a>
+        <div class="popup"><img src="city 15.png" alt="City 15"></div>
+      </div>
+
+      <div class="hotspot" style="top: 90.25%; left: 33%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="33%" data-origin-y="90.25%">
+        <a href="#region16"></a>
+        <div class="popup"><img src="city 16.png" alt="City 16"></div>
+      </div>
+
+      <div class="hotspot" style="top: 9.75%; left: 33.25%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="33.25%" data-origin-y="9.75%">
+        <a href="#region17"></a>
+        <div class="popup"><img src="city 17.png" alt="City 17"></div>
+      </div>
+
+      <div class="hotspot" style="top: 15.5%; left: 50.25%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="50.25%" data-origin-y="15.5%">
+        <a href="#region18"></a>
+        <div class="popup"><img src="city 18.png" alt="City 18"></div>
+      </div>
+
+      <div class="hotspot" style="top: 79%; left: 36.25%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="36.25%" data-origin-y="79%">
+        <a href="#region19"></a>
+        <div class="popup"><img src="city19.jpg" alt="City 19"></div>
+      </div>
+
+      <div class="hotspot" style="top: 88.5%; left: 45.75%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="45.75%" data-origin-y="88.5%">
+        <a href="#region20"></a>
+        <div class="popup"><img src="city20.jpg" alt="City 20"></div>
+      </div>
+
+      <div class="hotspot" style="top: 36.25%; left: 52.75%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="52.75%" data-origin-y="36.25%">
+        <a href="#region21"></a>
+        <div class="popup"><img src="city21.jpg" alt="City 21"></div>
+      </div>
+
+      <div class="hotspot" style="top: 89.25%; left: 20.25%; --pop-x: 12px; --pop-y: -8px;"
+           data-origin-x="20.25%" data-origin-y="89.25%">
+        <a href="#region22"></a>
+        <div class="popup"><img src="city 22.png" alt="City 22"></div>
+      </div>
+
+    </div>
   </div>
-</div>
 
-<!-- Hotspot 2 (filename fixed) -->
-<div class="hotspot" style="top: 47%; left: 55.75%;"
-     data-origin-x="55.75%" data-origin-y="47%">
-  <a href="#region2"></a>
-  <div class="popup">
-    <img src="city 2.png" alt="City 2">
-  </div>
-</div>
+  <script>
+    const map = document.getElementById("map-image");
+    const hotspots = document.querySelectorAll(".hotspot");
 
-<!-- Add remaining hotspots exactly as before -->
-<!-- (You can keep all your others unchanged) -->
+    hotspots.forEach(hotspot => {
+      hotspot.addEventListener("mouseenter", () => {
+        const x = hotspot.getAttribute("data-origin-x");
+        const y = hotspot.getAttribute("data-origin-y");
+        map.style.transformOrigin = `${x} ${y}`;
+        map.style.transform = "scale(1.1)";
+      });
 
-</div>
-</div>
-
-<script>
-const map = document.getElementById("map-image");
-const hotspots = document.querySelectorAll(".hotspot");
-
-hotspots.forEach(hotspot => {
-  hotspot.addEventListener("mouseenter", () => {
-    const x = hotspot.getAttribute("data-origin-x");
-    const y = hotspot.getAttribute("data-origin-y");
-    map.style.transformOrigin = `${x} ${y}`;
-    map.style.transform = "scale(1.1)";
-  });
-
-  hotspot.addEventListener("mouseleave", () => {
-    map.style.transform = "scale(1)";
-  });
-});
-</script>
+      hotspot.addEventListener("mouseleave", () => {
+        map.style.transform = "scale(1)";
+      });
+    });
+  </script>
 
 </body>
 </html>
